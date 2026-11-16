@@ -2,7 +2,7 @@
 
 App para anotar pagos, cobros y repartos del emprendimiento PETRO y ver cómo viene cada mes. Lee y escribe directo en el Google Sheet "PETRO 2026 - Control".
 
-Es una sola página publicada con GitHub Pages, igual que Panel ADM. Este repositorio **no tiene datos**: los números viven en el Sheet. Cada una entra con su cuenta de Google y solo funciona si tiene el Sheet compartido como editora.
+Es una sola página publicada con GitHub Pages. Este repositorio **no tiene datos**: los números viven en el Sheet. Cada una entra con su cuenta de Google y solo funciona si tiene el Sheet compartido como editora.
 
 ## Qué tiene
 
@@ -11,20 +11,24 @@ Es una sola página publicada con GitHub Pages, igual que Panel ADM. Este reposi
 - **Repartos**: cuánto se puede repartir, el sugerido para cada una, anotar el reparto de las tres de una vez y el fondo de ahorro en dólares (meta USD 100 a 200 por mes).
 - **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, AySA del edificio y el fondo.
 
+## Conectarlo con Google (una sola vez)
+
+PETRO tiene su propio proyecto de Google Cloud, separado de cualquier otro.
+
+1. Entrar a [console.cloud.google.com](https://console.cloud.google.com) y crear un proyecto llamado `PETRO`.
+2. En **APIs y servicios › Biblioteca**, buscar **Google Sheets API** y tocar **Habilitar**.
+3. En **Google Auth Platform**, completar el nombre de la app (`PETRO`) y el mail, con tipo de usuario **Externo**.
+4. En **Público**, dejarlo en modo **Prueba** y agregar como usuarios de prueba los Gmail de las tres hermanas.
+5. En **Clientes**, crear un cliente de tipo **Aplicación web**. En **Orígenes autorizados de JavaScript** poner `https://celepetrone.github.io`.
+6. Copiar el **ID de cliente** (termina en `.apps.googleusercontent.com`) y pegarlo en `config.js`, en `googleClientId`.
+
 ## Quién puede entrar
 
-Hacen falta las dos cosas:
+Hacen falta las dos cosas: estar como **usuaria de prueba** en el proyecto PETRO de Google Cloud y tener el **Sheet compartido como editora**. Para sacar a alguien, alcanza con dejar de compartirle el Sheet.
 
-1. Que su Gmail esté como **usuario de prueba** en Google Cloud. Se usa el mismo proyecto que Panel ADM: [console.cloud.google.com](https://console.cloud.google.com) → proyecto Panel ADM → Google Auth Platform → **Público** → Usuarios de prueba → agregar.
-2. Que tenga el **Sheet compartido como editora**.
+## Publicarlo
 
-Para sacar a alguien, alcanza con dejar de compartirle el Sheet.
-
-## Publicarlo (una sola vez)
-
-En GitHub: **Settings › Pages**. En *Branch* elegir `main` y la carpeta `/ (root)`, y tocar **Save**. A los pocos minutos queda en `https://celepetrone.github.io/petro-app/`.
-
-El cliente de Google del proyecto Panel ADM ya tiene autorizado `https://celepetrone.github.io`, así que no hace falta tocar nada más en Google Cloud.
+GitHub Pages ya está activo desde `main`: `https://celepetrone.github.io/petro-app/`.
 
 ## Archivos
 

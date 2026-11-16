@@ -610,6 +610,7 @@ function pintarEntrar(error){
     <p class="muted" style="margin:0">Entrá con tu cuenta de Google. Solo funciona para las cuentas que tienen el Sheet de PETRO compartido. Google pide confirmar una vez por hora.</p>
     <button class="btn primary" id="entrar">Entrar con Google</button>
   </section>`;
+  if(!CFG.googleClientId){ $('entrar').disabled=true; $('entrar').insertAdjacentHTML('afterend','<p class="muted" style="margin:0;font-size:.85rem">Falta conectar la app con su proyecto de Google Cloud (config.js).</p>'); return; }
   $('entrar').onclick=async()=>{ try{ await pedirToken(store.get('email','')?'':'select_account'); cargar(); }catch(e){ pintarEntrar(e.message); } };
 }
 function avisoVencido(){
