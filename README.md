@@ -6,10 +6,13 @@ Es una sola página publicada con GitHub Pages. Este repositorio **no tiene dato
 
 ## Qué tiene
 
-- **Mes**: cobrado, pagado, ganancia, repartido y lo que quedó; qué falta pagar o cobrar; próximos ajustes de alquiler.
-- **Anotar**: todos los conceptos del mes con su color (verde anotado, amarillo toca este mes, rojo atrasado, gris no corresponde). Se toca uno y se carga el monto.
-- **Repartos**: cuánto se puede repartir, el sugerido para cada una, anotar el reparto de las tres de una vez y el fondo de ahorro en dólares (meta USD 100 a 200 por mes).
-- **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, AySA del edificio y el fondo.
+Menú a la izquierda (en el celu se abre con ☰). Colores: verde hecho, amarillo a la espera o toca este mes, rojo falta o atrasado.
+
+- **Cargar y pendientes**: números del mes, lo que falta cobrar y pagar (con el monto para anotar ahí mismo), próximos ajustes de alquiler, "Cargar otra cosa" (incluye "Otro" para lo que no está en la lista) y "Para revisar" con posibles errores.
+- **Meses**: un mes por vez, con cada concepto, el mes anterior al lado y aviso si cambió mucho. Se corrige tocando el monto.
+- **Repartos y fondo**: cuánto se puede repartir, de qué se reparte (Santa Elena, Javier, San Martín u otros), lo que le queda a cada una después de sus deudas internas, y el fondo en dólares o en pesos.
+- **Deudas internas**: compras personales con la tarjeta del negocio y préstamos a alguna de las tres, en cuotas que se descuentan solas del reparto.
+- **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, ajustes, AySA y el fondo en dólares.
 
 ## Conectarlo con Google (una sola vez)
 
@@ -40,6 +43,8 @@ GitHub Pages ya está activo desde `main`: `https://celepetrone.github.io/petro-
 
 - La app solo escribe montos en las celdas de enero a diciembre de las filas de conceptos y repartos de "Control 2026". No toca fórmulas.
 - Todo lo que se anota desde la app queda en la hoja "Registro app" del Sheet: quién (mail), cuándo, qué y el valor anterior.
+- La app crea sola, la primera vez que se usan, las hojas "Otros movimientos" (lo cargado como "Otro") y "Deudas internas". Lo de "Otros movimientos" lo suma la app; los totales de "Control 2026" no lo incluyen.
+- El fondo en dólares se anota también en las columnas H e I de "Fondo de ahorro" (pesos pasados a dólares y tipo de cambio).
 - Si se agregan filas al Sheet, copiar una fila de la misma sección, como siempre. La app las reconoce sola.
 - Google pide volver a confirmar una vez por hora. Si se vence mientras están cargando, aparece "Seguir conectada".
 - Si la ventana de Google se cierra sola ("popup_closed"), suele ser el bloqueo del navegador: en Brave, desactivar los escudos para la página.
