@@ -11,7 +11,7 @@ Menú a la izquierda (en el celu se abre con ☰). Colores: verde hecho, amarill
 - **Cargar y pendientes**: números del mes, lo que falta cobrar y pagar (con el monto para anotar ahí mismo), próximos ajustes de alquiler, "Cargar otra cosa" (incluye "Otro" para lo que no está en la lista) y "Para revisar" con posibles errores.
 - **Meses**: un mes por vez, con cada concepto, el mes anterior al lado y aviso si cambió mucho. Se corrige tocando el monto.
 - **Repartos y fondo**: cuánto se puede repartir, de qué se reparte (Santa Elena, Javier, San Martín u otros), lo que le queda a cada una después de sus deudas internas, y el fondo en dólares o en pesos.
-- **Deudas internas**: compras personales con la tarjeta del negocio y préstamos a alguna de las tres, en cuotas que se descuentan solas del reparto.
+- **Deudas internas**: compras personales con la tarjeta del negocio, préstamos del negocio a alguna y préstamos entre hermanas, en cuotas que se descuentan (o se suman a quien prestó) solas en el reparto.
 - **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, ajustes, AySA y el fondo en dólares.
 
 ## Conectarlo con Google (una sola vez)

@@ -207,7 +207,9 @@ table.t{width:100%;border-collapse:collapse;font-size:.84rem}
 .months{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:6px}
 .mo{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:8px 0 7px;display:grid;gap:5px;justify-items:center;font-weight:600;font-size:.84rem;color:var(--ink)}
 .mo i{width:60%;height:4px;border-radius:2px;background:var(--none)}
-.mo.e1 i{background:var(--ok)} .mo.e2 i{background:var(--warn)} .mo.e3 i{background:var(--bad)} .mo.e4{color:var(--muted)}
+.mo.e1 i{background:var(--ok)} .mo.e2 i{background:var(--warn)} .mo.e3 i{background:var(--bad)} .mo.e4 i{background:var(--none)}
+.mo.e5{color:var(--muted)} .mo.e5 i{background:none;box-shadow:inset 0 0 0 1px var(--none)}
+.legend .fut::before{background:none;box-shadow:inset 0 0 0 1px var(--none)}
 .mo[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 .mo[aria-pressed="true"] i{box-shadow:0 0 0 1.5px #fff}
 .mblock{padding:6px 18px 8px}
@@ -291,6 +293,9 @@ table.t{width:100%;border-collapse:collapse;font-size:.84rem}
 .otro-box{background:var(--accent-soft);border-radius:10px;padding:10px 12px}
 .hist div b{font-variant-numeric:tabular-nums}
 .warn-t{color:var(--warn)}
+.ok-t{color:var(--ok)}
+.tipo.hermana{background:var(--ok-soft);color:var(--ok)}
+.seg.tres button{font-size:.86rem;padding:8px 4px}
 .aj.tj.s3{box-shadow:inset 3px 0 0 var(--bad);padding-left:10px}
 .aj.tj.s2{box-shadow:inset 3px 0 0 var(--warn);padding-left:10px}
 .aj.tj.s1{box-shadow:inset 3px 0 0 var(--ok);padding-left:10px}
@@ -448,7 +453,7 @@ async function leerSheet(){
   // registro de cambios (para ver de dónde salió cada reparto); si no existe todavía, no pasa nada
   try{ const r=await gfetch(SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${REGISTRO}'!A2:G3000`)); d.registro=r.values||[]; }catch(e){ if(e.vencido) throw e; d.registro=[]; }
   for(const [k,h] of [['otros',OTROS],['tarjeta',TARJETA]]){
-    try{ const r=await gfetch(SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${h}'!A2:J2000`)+'?valueRenderOption=UNFORMATTED_VALUE'); d[k]=r.values||[]; }catch(e){ if(e.vencido) throw e; d[k]=[]; }
+    try{ const r=await gfetch(SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${h}'!A2:K2000`)+'?valueRenderOption=UNFORMATTED_VALUE'); d[k]=r.values||[]; }catch(e){ if(e.vencido) throw e; d[k]=[]; }
   }
   return d;
 }
@@ -484,11 +489,11 @@ async function anotarSheet(items, email){
 const OTROS = 'Otros movimientos', TARJETA = 'Deudas internas';
 const ENCAB = {
   [OTROS]: ['Fecha','Mes','Tipo','Qué es','Monto','Cargó'],
-  [TARJETA]: ['Fecha','Quién','Tipo','Qué','Monto total','Cuotas','Año primera cuota','Mes primera cuota','Cuotas descontadas','Cargó'],
+  [TARJETA]: ['Fecha','Quién','Tipo','Qué','Monto total','Cuotas','Año primera cuota','Mes primera cuota','Cuotas descontadas','Cargó','Le prestó'],
 };
 // agrega filas al final de una hoja; si la hoja no existe, la crea con su encabezado
 async function agregarFilas(hoja, filas){
-  const url = SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${hoja}'!A:J`)+':append?valueInputOption=USER_ENTERED';
+  const url = SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${hoja}'!A:K`)+':append?valueInputOption=USER_ENTERED';
   try{ await gfetch(url,{method:'POST',body:JSON.stringify({values:filas})}); }
   catch(e){
     if(e.vencido) throw e;
@@ -506,10 +511,11 @@ async function anotarOtro(o, email){
 async function anotarTarjeta(t, email){
   const hoy=new Date().toLocaleString('es-AR');
   if(t.nueva){ const x=t.nueva;
+    if(x.tipo==='hermana' && (!['Mica','Anto','Cele'].includes(x.de)||x.de===x.quien)) throw new Error('Elegí quién prestó y a quién, que sean distintas.');
     if(!['Mica','Anto','Cele'].includes(x.quien)||!x.que||!isNum(x.monto)||x.monto<=0||!(x.cuotas>=1&&x.cuotas<=24)) throw new Error('Revisá los datos de la compra.');
-    const tipo = x.tipo==='prestamo'?'Préstamo':'Tarjeta';
-    await agregarFilas(TARJETA,[[hoy, x.quien, tipo, "'"+String(x.que).slice(0,80), x.monto, x.cuotas, x.anio, x.mes, 0, email||'']]);
-    await registrar([[hoy, email||'sin mail', tipo+' · '+x.quien, MESES[x.mes-1], '(vacío)', x.monto, `${x.que} en ${x.cuotas} cuota${x.cuotas>1?'s':''}`]]);
+    const tipo = x.tipo==='prestamo'?'Préstamo':x.tipo==='hermana'?'Entre hermanas':'Tarjeta';
+    await agregarFilas(TARJETA,[[hoy, x.quien, tipo, "'"+String(x.que).slice(0,80), x.monto, x.cuotas, x.anio, x.mes, 0, email||'', x.tipo==='hermana'?x.de:'']]);
+    await registrar([[hoy, email||'sin mail', tipo+' · '+(x.tipo==='hermana'?x.de+' le prestó a '+x.quien:x.quien), MESES[x.mes-1], '(vacío)', x.monto, `${x.que} en ${x.cuotas} cuota${x.cuotas>1?'s':''}`]]);
   }
   if(t.descontar&&t.descontar.length){
     // se controla que cada fila siga siendo la misma compra antes de marcarla
@@ -597,7 +603,7 @@ function parsear(d){
   const cobrado=[...Array(12)].map((_,m)=>col(ingresos,m)+deOtros('ingreso',m));
   const pagado=[...Array(12)].map((_,m)=>col(gastos,m)+deOtros('pago',m));
   // compras personales con la tarjeta del negocio
-  const tarjeta=(d.tarjeta||[]).map((r,k)=>({fila:k+2,fecha:r[0],quien:r[1],tipo:String(r[2]).toLowerCase().startsWith('pr')?'prestamo':'tarjeta',que:String(r[3]||'').replace(/^'/,''),monto:isNum(r[4])?r[4]:0,cuotas:isNum(r[5])&&r[5]>=1?r[5]:1,anio:isNum(r[6])?r[6]:null,mes:isNum(r[7])?r[7]:null,descontadas:isNum(r[8])?r[8]:0})).filter(t=>t.quien&&t.monto&&t.anio&&t.mes);
+  const tarjeta=(d.tarjeta||[]).map((r,k)=>({fila:k+2,fecha:r[0],quien:r[1],tipo:String(r[2]).toLowerCase().startsWith('pr')?'prestamo':String(r[2]).toLowerCase().startsWith('entre')?'hermana':'tarjeta',de:String(r[10]||''),que:String(r[3]||'').replace(/^'/,''),monto:isNum(r[4])?r[4]:0,cuotas:isNum(r[5])&&r[5]>=1?r[5]:1,anio:isNum(r[6])?r[6]:null,mes:isNum(r[7])?r[7]:null,descontadas:isNum(r[8])?r[8]:0})).filter(t=>t.quien&&t.monto&&t.anio&&t.mes&&(t.tipo!=='hermana'||t.de));
   const reparto={}; de('reparto').forEach(f=>{ reparto[f.concepto.replace('Reparto ','')]=f; });
   const fondo=filas.find(f=>f.tipo==='fondo');
   // unidades
@@ -690,7 +696,7 @@ function revisar(m){
   if(atr.length) out.push({n:3,t:`${atr.length} ${atr.length===1?'cosa atrasada':'cosas atrasadas'} de meses anteriores`,d:[...new Set(atr.map(p=>p.f.concepto))].slice(0,4).join(', '),ir:'cargar'});
   for(let k=0;k<m;k++){ const n=numeros(k+1);
     if(n.totalRep+n.fondo>n.g+1 && n.totalRep) masRep.push({k,dif:n.totalRep+n.fondo-n.g});
-    const dk=descuentos(k+1); const vs=['Mica','Anto','Cele'].map(h=>M.reparto[h]&&isNum(M.reparto[h].valores[k])?M.reparto[h].valores[k]+totalDesc(dk[h]):null).filter(isNum);
+    const dk=descuentos(k+1), ck=creditos(k+1); const vs=['Mica','Anto','Cele'].map(h=>M.reparto[h]&&isNum(M.reparto[h].valores[k])?M.reparto[h].valores[k]+totalDesc(dk[h])-totalDesc(ck[h]):null).filter(isNum);
     if(vs.length>1 && Math.max(...vs)-Math.min(...vs)>1) out.push({n:2,t:`Repartos distintos en ${MESES[k]}`,d:['Mica','Anto','Cele'].filter(h=>M.reparto[h]).map(h=>h+' '+(valorTxt(M.reparto[h].valores[k])||'—')).join(' · '),ir:'meses',mes:k+1});
   }
   if(masRep.length) out.push({n:3,t:`Se repartió más de lo que se ganó en ${masRep.length} ${masRep.length===1?'mes':'meses'}`,d:masRep.map(x=>MESES[x.k]+' (+'+fmtK(x.dif)+')').join(', ')+'. Sale de la plata que había en la cuenta.',ir:'meses',mes:masRep[masRep.length-1].k+1});
@@ -837,10 +843,13 @@ function usdAhorrado(k){
   if(M.usdMes&&isNum(M.usdMes[k])&&M.usdMes[k]>0) return M.usdMes[k];
   const v=M.fondo&&M.fondo.valores[k]; return isNum(v)&&v>0?v/tc:0;
 }
+// rojo: se repartió más de lo que entró (ganancia); verde: llegó a la meta; amarillo: ahorró algo; gris: nada
+function repartioDeMas(k){ const n=numeros(k+1); return n.totalRep>0 && n.totalRep+n.fondo>n.g+1; }
 function estadoMes(k){
-  if(!(M.cobrado[k]>0) && k+1>M.mesReunion) return 4;
+  if(!(M.cobrado[k]>0) && k+1>M.mesReunion) return 5;
+  if(repartioDeMas(k)) return 3;
   const u=usdAhorrado(k);
-  return u>=META_USD-0.5?1:(u>0?2:3);
+  return u>=META_USD-0.5?1:(u>0?2:4);
 }
 function vMeses(){
   const m=mesSel, i=m-1, n=numeros(m), pm=pendientes(m);
@@ -862,7 +871,7 @@ function vMeses(){
   $('app').innerHTML=`
   <div class="months" role="group" aria-label="Elegí el mes">${MES_C.map((x,k)=>{ const st=estadoMes(k);
     return `<button type="button" class="mo e${st}" data-m="${k+1}" aria-pressed="${k===i}"><span>${x}</span><i></i></button>`; }).join('')}</div>
-  <div class="legend"><b>Ahorro del mes:</b><span style="--c:var(--ok)">Llegamos a USD ${META_USD}</span><span style="--c:var(--warn)">Ahorramos, pero menos</span><span style="--c:var(--bad)">No ahorramos</span><span style="--c:var(--none)">Todavía no llegó</span></div>
+  <div class="legend"><span style="--c:var(--ok)">Ahorramos USD ${META_USD}</span><span style="--c:var(--warn)">Ahorramos, pero menos</span><span style="--c:var(--none)">No ahorramos</span><span style="--c:var(--bad)">Se repartió más de lo que entró</span><span class="fut">Todavía no llegó</span></div>
   <div class="stats">
     ${stat('Cobrado',n.c,'',pm.some(p=>esCobro(p.f)&&p.mes===m)?'warn':'ok')}${stat('Pagado',n.p,'',pm.some(p=>esPago(p.f)&&p.mes===m&&p.st===3)?'bad':pm.some(p=>esPago(p.f)&&p.mes===m)?'warn':'ok')}${stat('Ganancia',n.g,'Le toca a cada una '+fmt(n.g/3),'hi')}${stat('Repartido a cada una',n.porUna,n.porUna?'':'Todavía nada',n.porUna?'ok':'warn')}
   </div>
@@ -908,6 +917,11 @@ function descuentos(m){ const out={Mica:[],Anto:[],Cele:[]};
   (M.tarjeta||[]).forEach(t=>{ if(cuotaEnMes(t,m)&&out[t.quien]) out[t.quien].push(t); });
   return out; }
 const totalDesc = l => sum(l.map(cuotaDe));
+// lo que le devuelven a quien prestó (préstamos entre hermanas)
+function creditos(m){ const out={Mica:[],Anto:[],Cele:[]};
+  (M.tarjeta||[]).forEach(t=>{ if(t.tipo==='hermana'&&cuotaEnMes(t,m)&&out[t.de]) out[t.de].push(t); });
+  return out; }
+const TIPO_TXT = {tarjeta:'Tarjeta',prestamo:'Préstamo del negocio',hermana:'Entre hermanas'};
 function estadoCompra(t){
   const hasta=cuotasHasta(t,mesSel);
   if(t.descontadas>=t.cuotas) return {st:1,txt:'Saldada'};
@@ -915,44 +929,52 @@ function estadoCompra(t){
   if(cuotaEnMes(t,mesSel)) return {st:2,txt:`Se descuenta en ${MESES[mesSel-1]}`};
   return {st:4,txt:`Empieza en ${MESES[t.mes-1]}`};
 }
-let tj={quien:store.get('tjQuien','Anto'),tipo:store.get('tjTipo','tarjeta')};
+let tj={quien:store.get('tjQuien','Anto'),tipo:store.get('tjTipo','tarjeta'),de:store.get('tjDe','Cele')};
 function vTarjeta(){
-  const m=mesSel, i=m-1, d=descuentos(m);
+  const m=mesSel, i=m-1, d=descuentos(m), c=creditos(m);
   const lista=[...(M.tarjeta||[])].reverse();
+  const her=tj.tipo==='hermana';
   $('app').innerHTML=`
-  <div class="stats">${['Mica','Anto','Cele'].map(h=>{ const v=totalDesc(d[h]); return stat(h+' · a descontar en '+MESES[i],v,v?d[h].map(t=>esc(t.que)).join(', '):'Nada este mes',v?'warn':'ok'); }).join('')}
+  <div class="stats">${['Mica','Anto','Cele'].map(h=>{ const n=totalDesc(c[h])-totalDesc(d[h]);
+      const sub=[].concat(d[h].map(t=>'− '+esc(t.que)),c[h].map(t=>'+ le devuelve '+esc(t.quien))).join(' · ');
+      return stat(h+' · en el reparto de '+MESES[i],n,sub||'Nada este mes',n<0?'warn':'ok'); }).join('')}
     ${stat('Total del mes',totalDesc([].concat(d.Mica,d.Anto,d.Cele)),'Se descuenta del reparto')}</div>
   <div class="two">
-    <section><div class="sec-head"><h2>Anotar algo a descontar</h2><p>Una compra personal con la tarjeta del negocio, o plata que se le prestó a alguna.</p></div>
+    <section><div class="sec-head"><h2>Anotar algo a descontar</h2><p>Una compra personal con la tarjeta del negocio, plata que el negocio le prestó a alguna, o un préstamo entre ustedes.</p></div>
       <form class="card form" id="f-tj">
-        <div class="field"><span class="lbl">¿Qué es?</span><div class="seg" id="tj-tipo"><button type="button" data-t="tarjeta" aria-pressed="${tj.tipo!=='prestamo'}">Compra con la tarjeta</button><button type="button" data-t="prestamo" aria-pressed="${tj.tipo==='prestamo'}">Préstamo</button></div></div>
-        <div class="field"><span class="lbl">¿Quién?</span><div class="seg tres" id="tj-quien">${['Mica','Anto','Cele'].map(h=>`<button type="button" data-h="${h}" aria-pressed="${tj.quien===h}">${h}</button>`).join('')}</div></div>
-        <div class="field"><label for="tj-que">Detalle</label><input id="tj-que" type="text" maxlength="80" autocomplete="off" placeholder="${tj.tipo==='prestamo'?'Ej: para el arreglo del auto':'Ej: regalo para la novia'}"></div>
+        <div class="field"><span class="lbl">¿Qué es?</span><div class="seg tres" id="tj-tipo">${['tarjeta','prestamo','hermana'].map(t=>`<button type="button" data-t="${t}" aria-pressed="${tj.tipo===t}">${t==='tarjeta'?'Compra con la tarjeta':t==='prestamo'?'Préstamo del negocio':'Entre hermanas'}</button>`).join('')}</div></div>
+        ${her?`<div class="field"><span class="lbl">¿Quién prestó?</span><div class="seg tres" id="tj-de">${['Mica','Anto','Cele'].map(h=>`<button type="button" data-h="${h}" aria-pressed="${tj.de===h}">${h}</button>`).join('')}</div></div>`:''}
+        <div class="field"><span class="lbl">${her?'¿A quién?':'¿Quién?'}</span><div class="seg tres" id="tj-quien">${['Mica','Anto','Cele'].map(h=>`<button type="button" data-h="${h}" aria-pressed="${tj.quien===h}">${h}</button>`).join('')}</div></div>
+        <div class="field"><label for="tj-que">Detalle</label><input id="tj-que" type="text" maxlength="80" autocomplete="off" placeholder="${tj.tipo==='tarjeta'?'Ej: regalo para la novia':'Ej: para el arreglo del auto'}"></div>
         <div class="row2 wide">
           <div class="field"><label for="tj-monto">Monto total</label><input id="tj-monto" class="monto" type="text" inputmode="decimal" autocomplete="off" placeholder="0"></div>
           <div class="field"><label for="tj-cuotas">Se descuenta en</label><select id="tj-cuotas">${[1,2,3,4,6,9,12,18].map(c=>`<option value="${c}">${c===1?'una sola vez':c+' cuotas'}</option>`).join('')}</select></div>
         </div>
-        <div class="field"><label for="tj-mes">${tj.tipo==='prestamo'?'Se empieza a descontar en el reparto de':'Primera cuota en el resumen de'}</label><select id="tj-mes">${MESES.map((x,k)=>`<option value="${k+1}" ${k===i?'selected':''}>${cap(x)} ${M.anio}</option>`).join('')}</select></div>
+        <div class="field"><label for="tj-mes">${tj.tipo==='tarjeta'?'Primera cuota en el resumen de':'Se empieza a devolver en el reparto de'}</label><select id="tj-mes">${MESES.map((x,k)=>`<option value="${k+1}" ${k===i?'selected':''}>${cap(x)} ${M.anio}</option>`).join('')}</select></div>
         <small class="muted" id="tj-hint">Se le descuenta de su reparto cada mes que cae una cuota.</small>
-        <div class="actions"><button class="btn primary" type="submit">${tj.tipo==='prestamo'?'Anotar préstamo':'Anotar compra'}</button></div>
+        <div class="actions"><button class="btn primary" type="submit">${tj.tipo==='tarjeta'?'Anotar compra':'Anotar préstamo'}</button></div>
       </form></section>
     <section><div class="sec-head"><h2>Anotados</h2><span class="pill ${lista.some(t=>estadoCompra(t).st===3)?'s3':lista.some(t=>estadoCompra(t).st===2)?'s2':'s1'}">${lista.length} en total</span></div>
       <div class="card">${lista.length?lista.map(t=>{ const e=estadoCompra(t);
-        return `<div class="aj tj s${e.st}"><span><b>${esc(t.quien)}</b> · <span class="tipo ${t.tipo}">${t.tipo==='prestamo'?'Préstamo':'Tarjeta'}</span> ${esc(t.que)}</span><span class="pill s${e.st}">${e.txt}</span>
-          <small>${fmt(t.monto)}${t.cuotas>1?` en ${t.cuotas} cuotas de ${fmt(cuotaDe(t))}`:''} · desde ${MESES[t.mes-1]} · descontadas ${t.descontadas} de ${t.cuotas}</small></div>`; }).join(''):'<div class="empty">Todavía no hay nada anotado.</div>'}</div></section>
+        return `<div class="aj tj s${e.st}"><span>${t.tipo==='hermana'?`<b>${esc(t.de)}</b> le prestó a <b>${esc(t.quien)}</b>`:`<b>${esc(t.quien)}</b>`} · <span class="tipo ${t.tipo}">${TIPO_TXT[t.tipo]}</span> ${esc(t.que)}</span><span class="pill s${e.st}">${e.txt}</span>
+          <small>${fmt(t.monto)}${t.cuotas>1?` en ${t.cuotas} cuotas de ${fmt(cuotaDe(t))}`:''} · desde ${MESES[t.mes-1]} · ${t.tipo==='hermana'?'devueltas':'descontadas'} ${t.descontadas} de ${t.cuotas}</small></div>`; }).join(''):'<div class="empty">Todavía no hay nada anotado.</div>'}</div></section>
   </div>
   <section class="card how"><h2>Cómo funciona</h2>
-    <p><b>Préstamo:</b> la plata salió de la cuenta del negocio. En <a href="#repartos">Repartos</a> se le descuenta a quien la pidió, en las cuotas que elijan, hasta devolverla.</p>
+    <p><b>Entre hermanas:</b> una le prestó plata suya a otra. En cada reparto, a quien debe se le descuenta la cuota y a quien prestó se le suma. El negocio no pone ni saca nada.</p>
+    <p><b>Préstamo del negocio:</b> la plata salió de la cuenta del negocio. En <a href="#repartos">Repartos</a> se le descuenta a quien la pidió, en las cuotas que elijan, hasta devolverla.</p>
     <p><b>Compra con la tarjeta:</b> el resumen lo paga el negocio, así que esa compra baja la ganancia de las tres. Por eso la cuota del mes <b>vuelve al pozo</b> y se reparte, y después <b>se le descuenta solo a quien compró</b>. Al final cada una queda como si hubiera pagado lo suyo.</p></section>`;
   $('tj-tipo').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tj.tipo=b.dataset.t; store.set('tjTipo',tj.tipo); render(); });
+  if($('tj-de')) $('tj-de').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tj.de=b.dataset.h; store.set('tjDe',tj.de); $('tj-de').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   $('tj-quien').querySelectorAll('button').forEach(b=>b.onclick=()=>{ tj.quien=b.dataset.h; store.set('tjQuien',tj.quien); $('tj-quien').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); });
   const hint=()=>{ const v=parseMonto($('tj-monto').value), c=+$('tj-cuotas').value; $('tj-hint').textContent = v&&!isNaN(v)?(c>1?`${c} cuotas de ${fmt(v/c)}, se descuentan de ${MESES[+$('tj-mes').value-1]} en adelante.`:`Se descuenta ${fmt(v)} en el reparto de ${MESES[+$('tj-mes').value-1]}.`):'Se le descuenta de su reparto cada mes que cae una cuota.'; };
+  void 0;
   $('f-tj').addEventListener('input',hint); $('f-tj').addEventListener('change',hint);
   $('f-tj').onsubmit=async e=>{ e.preventDefault(); if(ocupado) return;
     const que=$('tj-que').value.trim(), v=parseMonto($('tj-monto').value), c=+$('tj-cuotas').value, mm=+$('tj-mes').value;
     if(!que){ toast('Escribí el detalle.',true); $('tj-que').focus(); return; }
+    if(her && tj.de===tj.quien){ toast('Quien presta y a quien le prestan tienen que ser distintas.',true); return; }
     if(!v||isNaN(v)||v<0){ toast('Escribí el monto total.',true); return; }
-    await anotar([], `${tj.tipo==='prestamo'?'Préstamo':'Compra'} de ${tj.quien} anotado`, null, {tarjeta:{nueva:{tipo:tj.tipo,quien:tj.quien,que,monto:v,cuotas:c,anio:M.anio,mes:mm}}});
+    await anotar([], her?`Préstamo de ${tj.de} a ${tj.quien} anotado`:`${tj.tipo==='prestamo'?'Préstamo':'Compra'} de ${tj.quien} anotado`, null, {tarjeta:{nueva:{tipo:tj.tipo,quien:tj.quien,de:her?tj.de:'',que,monto:v,cuotas:c,anio:M.anio,mes:mm}}});
   };
 }
 
@@ -964,7 +986,7 @@ function vRepartos(){
   const aysaPend = aysaRow && aysaRow.estados[i]!==1 ? (M.aysaReserva||0) : 0;
   const usdMeta = store.get('usdMeta',META_USD);
   const fondoPesosMeta = Math.round(usdMeta*tc);
-  const desc = descuentos(m), todos=[].concat(desc.Mica,desc.Anto,desc.Cele), descTot = totalDesc(todos), pozoTj = totalDesc(todos.filter(t=>t.tipo==='tarjeta'));
+  const desc = descuentos(m), cred = creditos(m), todos=[].concat(desc.Mica,desc.Anto,desc.Cele), descTot = totalDesc(todos), pozoTj = totalDesc(todos.filter(t=>t.tipo==='tarjeta'));
   const libre = Math.max(0,n.g-aysaPend-fondoPesosMeta);
   const sug = Math.floor((libre+pozoTj)/3/10000)*10000;
   const rep=M.reparto, hermanas=['Mica','Anto','Cele'].filter(h=>rep[h]);
@@ -1000,7 +1022,9 @@ function vRepartos(){
           <div class="field"><label for="rep-de">De qué se reparte</label><select id="rep-de">${ORIGENES.map(([o])=>`<option ${o===origen?'selected':''}>${o}</option>`).join('')}</select></div>
         </div>
         <small class="muted" id="rep-hint"></small>
-        ${descTot?`<div class="field"><span class="lbl">Le queda a cada una</span><div class="hist" id="rep-cada">${hermanas.map(h=>`<div data-h="${h}"><span>${h}</span><span class="${desc[h].length?'warn-t':''}">${desc[h].length?'− '+fmt(totalDesc(desc[h]))+' ('+desc[h].map(t=>esc(t.que)+(t.cuotas>1?' '+(cuotasHasta(t,m))+'/'+t.cuotas:'')).join(', ')+')':'sin descuentos'}</span><b class="num"></b></div>`).join('')}</div></div>`:''}
+        ${descTot?`<div class="field"><span class="lbl">Le queda a cada una</span><div class="hist" id="rep-cada">${hermanas.map(h=>{
+          const partes=[].concat(desc[h].map(t=>`<span class="warn-t">− ${fmt(cuotaDe(t))} ${esc(t.que)}${t.cuotas>1?' '+cuotasHasta(t,m)+'/'+t.cuotas:''}</span>`), cred[h].map(t=>`<span class="ok-t">+ ${fmt(cuotaDe(t))} le devuelve ${esc(t.quien)}</span>`));
+          return `<div data-h="${h}"><span>${h}</span><span>${partes.length?partes.join(' · '):'sin cambios'}</span><b class="num"></b></div>`; }).join('')}</div></div>`:''}
         <small class="muted">Hoy: ${hermanas.map(h=>h+' '+(valorTxt(rep[h].valores[i])||'—')).join(' · ')} · <button type="button" class="btn link" id="rep-sug">Usar sugerido</button></small>
         <div class="actions"><button class="btn primary" type="submit" data-modo="poner">Anotar</button><button class="btn" type="submit" data-modo="sumar">Sumar a lo anotado</button></div>
         ${hechos.length?`<div class="field"><span class="lbl">Repartos de ${MESES[i]}</span>${histo(hechos)}</div>`:''}
@@ -1029,15 +1053,15 @@ function vRepartos(){
   let modo='poner';
   $('f-rep').querySelectorAll('button[type=submit]').forEach(b=>b.onclick=()=>{modo=b.dataset.modo;});
   const pintarCada=()=>{ if(!$('rep-cada')) return; const v=parseMonto($('rep-monto').value||$('rep-monto').placeholder)||0;
-    $('rep-cada').querySelectorAll('div[data-h]').forEach(r=>{ r.querySelector('b').textContent=fmt(v-totalDesc(desc[r.dataset.h])); }); };
+    $('rep-cada').querySelectorAll('div[data-h]').forEach(r=>{ r.querySelector('b').textContent=fmt(v-totalDesc(desc[r.dataset.h])+totalDesc(cred[r.dataset.h])); }); };
   $('rep-monto').addEventListener('input',pintarCada); pintarCada();
   $('f-rep').onsubmit=async e=>{ e.preventDefault(); if(ocupado) return;
     const v=parseMonto($('rep-monto').value); if(!v||v<0){ toast('Escribí un monto válido.',true); return; }
     const o=$('rep-de').value;
     // los descuentos de la tarjeta van una sola vez, en el primer reparto del mes
     const conDesc = !(modo==='sumar' && hermanas.some(h=>isNum(rep[h].valores[i])));
-    const items=hermanas.map(h=>{ const f=rep[h], act=f.valores[i], dsc=conDesc?totalDesc(desc[h]):0, val=v-dsc;
-      return {fila:f.fila,mes:m,concepto:f.concepto,detalle:`${fmt(v)} de ${o}${dsc?' − a descontar '+fmt(dsc):''}${modo==='sumar'&&isNum(act)?' (sumado)':''}`,valor: modo==='sumar'&&isNum(act) ? `=${act}+${val}` : val}; });
+    const items=hermanas.map(h=>{ const f=rep[h], act=f.valores[i], dsc=conDesc?totalDesc(desc[h]):0, crd=conDesc?totalDesc(cred[h]):0, val=v-dsc+crd;
+      return {fila:f.fila,mes:m,concepto:f.concepto,detalle:`${fmt(v)} de ${o}${dsc?' − a descontar '+fmt(dsc):''}${crd?' + le devuelven '+fmt(crd):''}${modo==='sumar'&&isNum(act)?' (sumado)':''}`,valor: modo==='sumar'&&isNum(act) ? `=${act}+${val}` : val}; });
     const descontar = conDesc ? [].concat(desc.Mica,desc.Anto,desc.Cele).map(t=>({fila:t.fila,quien:t.quien,que:t.que,descontadas:Math.max(t.descontadas,cuotasHasta(t,m))})) : [];
     await anotar(items, `Reparto de ${fmt(v)} (${o}) anotado${descTot&&conDesc?', con los descuentos':' para las tres'}`, null, descontar.length?{tarjeta:{descontar}}:null);
   };
@@ -1090,7 +1114,7 @@ function vTablero(){
     <section><div class="sec-head"><h2>Próximos ajustes de alquiler</h2></div><div class="card">${ajustesHTML()}</div></section>
     <section><div class="sec-head"><h2>Fondo en dólares</h2><p>Dólar a ${fmt(tc)} (se cambia en Repartos).</p></div>
       <div class="card tbl"><table class="t"><thead><tr><th>Mes</th><th>Pesos</th><th>Dólares</th><th>Meta</th></tr></thead><tbody>
-      ${conDatos.map(k=>{ const v=fondoV[k]; return `<tr><td>${cap(MESES[k])}</td><td>${isNum(v)?fmt(v):'—'}</td><td>${usdAhorrado(k)?usd(usdAhorrado(k)):'—'}</td><td><span class="pill s${estadoMes(k)}">${['','Cumplida','Corta','Sin ahorro','—'][estadoMes(k)]}</span></td></tr>`; }).join('')}
+      ${conDatos.map(k=>{ const v=fondoV[k]; return `<tr><td>${cap(MESES[k])}</td><td>${isNum(v)?fmt(v):'—'}</td><td>${usdAhorrado(k)?usd(usdAhorrado(k)):'—'}</td><td>${(()=>{ const u=usdAhorrado(k), st=u>=META_USD-0.5?1:(u>0?2:4); return `<span class="pill s${st}">${['','Cumplida','Corta','','Sin ahorro'][st]}</span>`; })()}</td></tr>`; }).join('')}
       </tbody></table></div></section>
   </div>
   <section><div class="sec-head"><h2>AySA del edificio</h2><p>Una sola factura para todo Sabattini. Al local le toca el 42,5%. De enero a marzo el local pagó AySA y ABL juntos.</p></div>
