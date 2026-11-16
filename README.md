@@ -1,8 +1,8 @@
 # PETRO · app
 
-App para anotar pagos, cobros y repartos del emprendimiento PETRO y ver cómo viene cada mes. Lee y escribe directo en el Google Sheet de control.
+App para anotar pagos, cobros y repartos del emprendimiento PETRO y ver cómo viene cada mes. Lee y escribe directo en el Google Sheet "PETRO 2026 - Control".
 
-Este repositorio es público y **no tiene datos ni claves**. La app corre dentro del Google Sheet (Apps Script) y se entra con la cuenta de Google: **solo pueden usarla las cuentas que tienen el Sheet compartido como editoras**. Para sumar o sacar a alguien, se comparte o se deja de compartir el Sheet.
+Es una sola página publicada con GitHub Pages, igual que Panel ADM. Este repositorio **no tiene datos**: los números viven en el Sheet. Cada una entra con su cuenta de Google y solo funciona si tiene el Sheet compartido como editora.
 
 ## Qué tiene
 
@@ -11,28 +11,31 @@ Este repositorio es público y **no tiene datos ni claves**. La app corre dentro
 - **Repartos**: cuánto se puede repartir, el sugerido para cada una, anotar el reparto de las tres de una vez y el fondo de ahorro en dólares (meta USD 100 a 200 por mes).
 - **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, AySA del edificio y el fondo.
 
+## Quién puede entrar
+
+Hacen falta las dos cosas:
+
+1. Que su Gmail esté como **usuario de prueba** en Google Cloud. Se usa el mismo proyecto que Panel ADM: [console.cloud.google.com](https://console.cloud.google.com) → proyecto Panel ADM → Google Auth Platform → **Público** → Usuarios de prueba → agregar.
+2. Que tenga el **Sheet compartido como editora**.
+
+Para sacar a alguien, alcanza con dejar de compartirle el Sheet.
+
+## Publicarlo (una sola vez)
+
+En GitHub: **Settings › Pages**. En *Branch* elegir `main` y la carpeta `/ (root)`, y tocar **Save**. A los pocos minutos queda en `https://celepetrone.github.io/petro-app/`.
+
+El cliente de Google del proyecto Panel ADM ya tiene autorizado `https://celepetrone.github.io`, así que no hace falta tocar nada más en Google Cloud.
+
 ## Archivos
 
-- `apps-script/Code.gs` y `apps-script/index.html`: la app. Se pegan en el Apps Script del Sheet.
-- `index.html`: página de presentación del repositorio.
-
-## Puesta en marcha (una sola vez, desde la compu)
-
-1. En el Google Sheet: **Extensiones → Apps Script**.
-2. En `Code.gs`: borrar lo que haya y pegar [`apps-script/Code.gs`](apps-script/Code.gs).
-3. Tocar **+ → HTML**, llamarlo `index` (sin el .html) y pegar [`apps-script/index.html`](apps-script/index.html).
-4. Guardar. **Implementar → Nueva implementación → Aplicación web**:
-   - Ejecutar como: **Usuario que accede a la aplicación web**.
-   - Quién tiene acceso: **Cualquier persona con una cuenta de Google**.
-5. Copiar la URL que termina en `/exec`. Ese es el link de la app para las tres.
-
-La primera vez que cada una la abre, Google pide permiso para que la app use el Sheet con su cuenta. Si aparece "Google no verificó esta app": Configuración avanzada → Ir a PETRO.
-
-En el celu: abrir el link y "Agregar a la pantalla de inicio".
+- `index.html`: la app.
+- `config.js`: ID de cliente de Google y del Sheet. No son secretos: sin una cuenta autorizada no dan acceso a nada.
+- `manifest.json` e `icon-512.png`: para instalarla en el celu ("Agregar a la pantalla de inicio").
 
 ## Cuidados
 
 - La app solo escribe montos en las celdas de enero a diciembre de las filas de conceptos y repartos de "Control 2026". No toca fórmulas.
 - Todo lo que se anota desde la app queda en la hoja "Registro app" del Sheet: quién (mail), cuándo, qué y el valor anterior.
 - Si se agregan filas al Sheet, copiar una fila de la misma sección, como siempre. La app las reconoce sola.
-- Para actualizar la app después de un cambio en el código: pegar los archivos nuevos y en Implementar → Administrar implementaciones → editar → Versión: nueva.
+- Google pide volver a confirmar una vez por hora. Si se vence mientras están cargando, aparece "Seguir conectada".
+- Si la ventana de Google se cierra sola ("popup_closed"), suele ser el bloqueo del navegador: en Brave, desactivar los escudos para la página.
