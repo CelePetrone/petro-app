@@ -2,7 +2,7 @@
 
 App para anotar pagos, cobros y repartos del emprendimiento PETRO y ver cómo viene cada mes. Lee y escribe directo en el Google Sheet de control.
 
-Este repositorio es público y **no tiene datos**: los números viven en el Google Sheet y la app los trae cuando se abre, con la dirección y la clave que cada una carga en su celu.
+Este repositorio es público y **no tiene datos ni claves**. La app corre dentro del Google Sheet (Apps Script) y se entra con la cuenta de Google: **solo pueden usarla las cuentas que tienen el Sheet compartido como editoras**. Para sumar o sacar a alguien, se comparte o se deja de compartir el Sheet.
 
 ## Qué tiene
 
@@ -11,16 +11,28 @@ Este repositorio es público y **no tiene datos**: los números viven en el Goog
 - **Repartos**: cuánto se puede repartir, el sugerido para cada una, anotar el reparto de las tres de una vez y el fondo de ahorro en dólares (meta USD 100 a 200 por mes).
 - **Tablero**: evolución mes a mes, de dónde viene la plata y en qué se va, AySA del edificio y el fondo.
 
-## Puesta en marcha (una sola vez)
+## Archivos
 
-1. **El Sheet**: el Excel tiene que estar como Google Sheet (Archivo → Guardar como Hojas de cálculo de Google).
-2. **La conexión**: en el Sheet, Extensiones → Apps Script. Pegar el contenido de [`apps-script/Code.gs`](apps-script/Code.gs), poner una clave distinta para cada una en `CLAVES` y guardar. **Las claves reales van solo en el Apps Script, nunca en este repositorio.** Después Implementar → Nueva implementación → Aplicación web, ejecutar como "Yo" y acceso "Cualquier persona". Google pide autorizar: aceptar. Copiar la URL que termina en `/exec`.
-3. **La app**: abrir la página de GitHub Pages, pegar la URL y la clave. En el celu, "Agregar a la pantalla de inicio" para tenerla como app.
+- `apps-script/Code.gs` y `apps-script/index.html`: la app. Se pegan en el Apps Script del Sheet.
+- `index.html`: página de presentación del repositorio.
+
+## Puesta en marcha (una sola vez, desde la compu)
+
+1. En el Google Sheet: **Extensiones → Apps Script**.
+2. En `Code.gs`: borrar lo que haya y pegar [`apps-script/Code.gs`](apps-script/Code.gs).
+3. Tocar **+ → HTML**, llamarlo `index` (sin el .html) y pegar [`apps-script/index.html`](apps-script/index.html).
+4. Guardar. **Implementar → Nueva implementación → Aplicación web**:
+   - Ejecutar como: **Usuario que accede a la aplicación web**.
+   - Quién tiene acceso: **Cualquier persona con una cuenta de Google**.
+5. Copiar la URL que termina en `/exec`. Ese es el link de la app para las tres.
+
+La primera vez que cada una la abre, Google pide permiso para que la app use el Sheet con su cuenta. Si aparece "Google no verificó esta app": Configuración avanzada → Ir a PETRO.
+
+En el celu: abrir el link y "Agregar a la pantalla de inicio".
 
 ## Cuidados
 
 - La app solo escribe montos en las celdas de enero a diciembre de las filas de conceptos y repartos de "Control 2026". No toca fórmulas.
-- Cada una tiene su clave. Si una se filtra, se cambia solo esa en el script y se publica una versión nueva (Implementar → Administrar implementaciones → editar → Nueva versión).
-- Todo lo que se anota desde la app queda en la hoja "Registro app" del Sheet: quién, cuándo, qué y el valor anterior. Si algo se cargó mal, ahí se ve cómo estaba.
-- "Cualquier persona" en la implementación es necesario para que la app se conecte. Sin una clave válida, el script no devuelve nada.
+- Todo lo que se anota desde la app queda en la hoja "Registro app" del Sheet: quién (mail), cuándo, qué y el valor anterior.
 - Si se agregan filas al Sheet, copiar una fila de la misma sección, como siempre. La app las reconoce sola.
+- Para actualizar la app después de un cambio en el código: pegar los archivos nuevos y en Implementar → Administrar implementaciones → editar → Versión: nueva.

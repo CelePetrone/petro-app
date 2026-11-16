@@ -1,28 +1,25 @@
 /**
- * PETRO · conexión entre la app y el Google Sheet.
+ * PETRO · la app vive dentro del Google Sheet.
  *
- * Cómo instalarlo (una sola vez):
+ * Quién puede entrar: solo las cuentas de Google con permiso de EDICIÓN en el Sheet.
+ * Para sumar o sacar a alguien, se comparte o se deja de compartir el Sheet. No hay claves.
+ *
+ * Cómo instalarlo (una sola vez, desde la compu):
  * 1. En el Google Sheet: Extensiones → Apps Script.
- * 2. Borrar lo que haya y pegar todo este archivo.
- * 3. Poner una clave distinta para cada una en CLAVES (abajo). Cada una usa la suya en la app.
- *    Si una clave se filtra, se cambia solo esa y se vuelve a implementar (Implementar → Administrar implementaciones → editar → Nueva versión).
- * 4. Implementar → Nueva implementación → Tipo: Aplicación web.
- *    Ejecutar como: "Yo". Quién tiene acceso: "Cualquier persona".
- *    ("Cualquier persona" es necesario para que la app se conecte; sin una clave válida el script no responde nada.)
- * 5. Copiar la URL que termina en /exec y pegarla en la app junto con la clave.
+ * 2. En Code.gs: borrar lo que haya y pegar todo este archivo.
+ * 3. Al lado de "Archivos", tocar + → HTML, llamarlo  index  y pegar el contenido de apps-script/index.html.
+ * 4. Guardar. Implementar → Nueva implementación → Tipo: Aplicación web.
+ *    Ejecutar como: "Usuario que accede a la aplicación web".
+ *    Quién tiene acceso: "Cualquier persona con una cuenta de Google".
+ *    (Igual solo funciona para quien tenga el Sheet compartido; el resto ve "no tenés acceso".)
+ * 5. Copiar la URL que termina en /exec. Ese es el link de la app.
  *
- * La app solo puede escribir montos en las celdas de los meses (enero a diciembre)
- * de las filas de conceptos y repartos de "Control 2026". Nunca pisa fórmulas de cálculo.
- * Todo lo que se anota queda en la hoja "Registro app": quién, cuándo, qué y el valor anterior.
+ * La app solo escribe montos en las celdas de los meses (enero a diciembre) de las filas
+ * de conceptos y repartos de "Control 2026". Nunca pisa fórmulas de cálculo.
+ * Todo lo que se anota queda en la hoja "Registro app": quién (mail), cuándo, qué y el valor anterior.
  */
-const CLAVES = {
-  Cele: 'clave-de-cele',
-  Mica: 'clave-de-mica',
-  Anto: 'clave-de-anto',
-};
-const HOJA_REGISTRO = 'Registro app';
-
 const HOJA_CONTROL = 'Control 2026';
+const HOJA_REGISTRO = 'Registro app';
 const RANGOS = {
   control: [HOJA_CONTROL, 'A1:AK60'],
   unidades: ['Unidades', 'A1:M12'],
@@ -30,37 +27,36 @@ const RANGOS = {
   fondo: ['Fondo de ahorro', 'A1:K30'],
 };
 const COL_ENERO = 6; // columna F
+const ICONO = 'https://raw.githubusercontent.com/CelePetrone/petro-app/main/icon-512.png';
 
-function doGet(e) { return responder(e.parameter || {}); }
-function doPost(e) {
-  let datos = {};
-  try { datos = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Pedido mal armado.' }); }
-  return responder(datos);
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index')
+    .setTitle('PETRO')
+    .setFaviconUrl(ICONO)
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, viewport-fit=cover');
 }
 
-function quienEs(clave) {
-  clave = String(clave || '');
-  if (clave.length < 6) return null;
-  const nombres = Object.keys(CLAVES);
-  for (let i = 0; i < nombres.length; i++) if (CLAVES[nombres[i]] === clave) return nombres[i];
-  return null;
-}
-
-function responder(p) {
-  const quien = quienEs(p.clave);
-  if (!quien) { Utilities.sleep(1500); return json({ ok: false, error: 'La clave no es correcta.' }); }
+// La app llama a esta función con google.script.run.api({...})
+function api(p) {
+  p = p || {};
+  let libro;
   try {
-    if (p.accion === 'leer') return json({ ok: true, quien: quien, datos: leer() });
-    if (p.accion === 'anotar') return json(Object.assign({ quien: quien }, anotar(p, quien)));
-    if (p.accion === 'mes') return json(cambiarMes(p));
-    return json({ ok: false, error: 'Acción desconocida.' });
+    libro = SpreadsheetApp.getActiveSpreadsheet();
+    libro.getSheetByName(HOJA_CONTROL).getRange('B1').getValue();
   } catch (err) {
-    return json({ ok: false, error: String(err && err.message || err) });
+    return { ok: false, error: 'Tu cuenta de Google no tiene acceso al Sheet de PETRO. Pedile a Cele que te lo comparta como editora.' };
+  }
+  const quien = Session.getActiveUser().getEmail() || 'sin mail';
+  try {
+    if (p.accion === 'leer') return { ok: true, quien: quien, datos: leer(libro) };
+    if (p.accion === 'anotar') return Object.assign({ quien: quien }, anotar(libro, p, quien));
+    return { ok: false, error: 'Acción desconocida.' };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
   }
 }
 
-function leer() {
-  const libro = SpreadsheetApp.getActiveSpreadsheet();
+function leer(libro) {
   const salida = { leido: new Date().toISOString() };
   Object.keys(RANGOS).forEach(function (k) {
     const hoja = libro.getSheetByName(RANGOS[k][0]);
@@ -78,11 +74,11 @@ function limpiar(filas) {
 // Fórmulas que son solo cuentas con números (por ejemplo =280000+624500) se pueden reemplazar.
 function esCuentaSimple(f) { return /^=[\d\s.,+\-*/()]+$/.test(f); }
 
-function anotar(p, quien) {
-  const items = Array.isArray(p.items) ? p.items : [p];
+function anotar(libro, p, quien) {
+  const items = Array.isArray(p.items) ? p.items : [];
   if (!items.length || items.length > 10) return { ok: false, error: 'Nada para anotar.' };
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CONTROL);
-  const lock = LockService.getScriptLock();
+  const hoja = libro.getSheetByName(HOJA_CONTROL);
+  const lock = LockService.getDocumentLock();
   lock.waitLock(10000);
   try {
     // primero se valida todo; si algo falla no se escribe nada
@@ -106,18 +102,17 @@ function anotar(p, quien) {
       else if (typeof c.valor === 'string' && c.valor.charAt(0) === '=') c.celda.setFormula(c.valor);
       else c.celda.setValue(c.valor);
     });
-    registrar(quien, celdas);
+    registrar(libro, quien, celdas);
     SpreadsheetApp.flush();
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
   } finally {
     lock.releaseLock();
   }
-  return { ok: true, datos: leer() };
+  return { ok: true, datos: leer(libro) };
 }
 
-function registrar(quien, celdas) {
-  const libro = SpreadsheetApp.getActiveSpreadsheet();
+function registrar(libro, quien, celdas) {
   let hoja = libro.getSheetByName(HOJA_REGISTRO);
   if (!hoja) {
     hoja = libro.insertSheet(HOJA_REGISTRO);
@@ -130,16 +125,4 @@ function registrar(quien, celdas) {
   const txt = function (v) { return v === '' || v === null ? '(vacío)' : "'" + String(v); };
   const filas = celdas.map(function (c) { return [ahora, quien, c.concepto, meses[c.mes - 1], txt(c.antes), txt(c.valor)]; });
   hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, 6).setValues(filas);
-}
-
-function cambiarMes(p) {
-  const mes = Number(p.mes);
-  if (!(mes >= 1 && mes <= 12)) return { ok: false, error: 'Mes fuera de rango.' };
-  SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CONTROL).getRange('F2').setValue(mes);
-  SpreadsheetApp.flush();
-  return { ok: true, datos: leer() };
-}
-
-function json(o) {
-  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
 }
