@@ -701,8 +701,8 @@ function revisar(m){
   const aysa=M.gastos.find(f=>f.grupo==='AySA');
   if(aysa) for(let k=3;k<m;k++){ const v=aysa.valores[k], c=M.cobLocal[k]; if(isNum(v)&&isNum(c)&&Math.abs(c-v*.425)>=5000) out.push({n:2,t:`AySA al local en ${MESES[k]} no coincide`,d:`Le tocaba ${fmt(v*.425)} y se cobró ${fmt(c)}`,ir:'tablero'}); }
   M.unidades.forEach(u=>{ if(u.proximo<hoy) out.push({n:3,t:`Ajuste de alquiler vencido: ${u.unidad}`,d:`Tocaba en ${MESES[u.proximo.getMonth()]} ${u.proximo.getFullYear()} · ${u.indice}`,ir:'tablero'}); });
-  if(M.fondo) for(let k=0;k<m-1;k++){ const v=M.fondo.valores[k]; if(M.cobrado[k]>0 && (!isNum(v)||v/tc<100)) fondoCorto.push(MESES[k]+(isNum(v)?' ('+usd(v/tc)+')':'')); }
-  if(fondoCorto.length) out.push({n:1,t:`Fondo debajo de USD 100 en ${fondoCorto.length} ${fondoCorto.length===1?'mes':'meses'}`,d:fondoCorto.join(', '),ir:'repartos'});
+  if(M.fondo) for(let k=0;k<m-1;k++){ const v=M.fondo.valores[k]; if(M.cobrado[k]>0 && usdAhorrado(k)<META_USD-0.5) fondoCorto.push(MESES[k]+(usdAhorrado(k)?' ('+usd(usdAhorrado(k))+')':'')); }
+  if(fondoCorto.length) out.push({n:1,t:`Fondo debajo de USD ${META_USD} en ${fondoCorto.length} ${fondoCorto.length===1?'mes':'meses'}`,d:fondoCorto.join(', '),ir:'repartos'});
   return out.sort((a,b)=>b.n-a.n);
 }
 function revisarHTML(m){
@@ -831,11 +831,16 @@ function formCargar(){
 }
 
 // ---------- Meses: la grilla como en el Excel ----------
+// color de cada mes según el ahorro: verde llegó a la meta, amarillo ahorró algo, rojo nada
+const META_USD = 200;
+function usdAhorrado(k){
+  if(M.usdMes&&isNum(M.usdMes[k])&&M.usdMes[k]>0) return M.usdMes[k];
+  const v=M.fondo&&M.fondo.valores[k]; return isNum(v)&&v>0?v/tc:0;
+}
 function estadoMes(k){
-  const fs=M.filas.filter(f=>esCobro(f)||esPago(f));
-  if(fs.some(f=>f.estados[k]===3)) return 3;
-  if(fs.some(f=>f.estados[k]===2)) return 2;
-  return M.cobrado[k]>0?1:4;
+  if(!(M.cobrado[k]>0) && k+1>M.mesReunion) return 4;
+  const u=usdAhorrado(k);
+  return u>=META_USD-0.5?1:(u>0?2:3);
 }
 function vMeses(){
   const m=mesSel, i=m-1, n=numeros(m), pm=pendientes(m);
@@ -857,7 +862,7 @@ function vMeses(){
   $('app').innerHTML=`
   <div class="months" role="group" aria-label="Elegí el mes">${MES_C.map((x,k)=>{ const st=estadoMes(k);
     return `<button type="button" class="mo e${st}" data-m="${k+1}" aria-pressed="${k===i}"><span>${x}</span><i></i></button>`; }).join('')}</div>
-  <div class="legend"><span style="--c:var(--ok)">Todo anotado</span><span style="--c:var(--warn)">Falta algo</span><span style="--c:var(--bad)">Hay atrasos</span><span style="--c:var(--none)">Sin datos</span></div>
+  <div class="legend"><b>Ahorro del mes:</b><span style="--c:var(--ok)">Llegamos a USD ${META_USD}</span><span style="--c:var(--warn)">Ahorramos, pero menos</span><span style="--c:var(--bad)">No ahorramos</span><span style="--c:var(--none)">Todavía no llegó</span></div>
   <div class="stats">
     ${stat('Cobrado',n.c,'',pm.some(p=>esCobro(p.f)&&p.mes===m)?'warn':'ok')}${stat('Pagado',n.p,'',pm.some(p=>esPago(p.f)&&p.mes===m&&p.st===3)?'bad':pm.some(p=>esPago(p.f)&&p.mes===m)?'warn':'ok')}${stat('Ganancia',n.g,'Le toca a cada una '+fmt(n.g/3),'hi')}${stat('Repartido a cada una',n.porUna,n.porUna?'':'Todavía nada',n.porUna?'ok':'warn')}
   </div>
@@ -957,7 +962,7 @@ function vRepartos(){
   const m=mesSel, i=m-1, n=numeros(m);
   const aysaRow=M.gastos.find(f=>f.grupo==='AySA');
   const aysaPend = aysaRow && aysaRow.estados[i]!==1 ? (M.aysaReserva||0) : 0;
-  const usdMeta = store.get('usdMeta',100);
+  const usdMeta = store.get('usdMeta',META_USD);
   const fondoPesosMeta = Math.round(usdMeta*tc);
   const desc = descuentos(m), todos=[].concat(desc.Mica,desc.Anto,desc.Cele), descTot = totalDesc(todos), pozoTj = totalDesc(todos.filter(t=>t.tipo==='tarjeta'));
   const libre = Math.max(0,n.g-aysaPend-fondoPesosMeta);
@@ -976,7 +981,7 @@ function vRepartos(){
   <div class="stats">
     ${stat('Sugerido para cada una',sug,'Redondeado para abajo a $10.000','hi')}
     ${stat('Ya repartido a cada una',n.porUna,n.porUna?'':'Nada anotado todavía',n.porUna?'ok':'warn')}
-    ${stat('Fondo en '+MESES[i],n.fondo,n.fondo?(usdMesTxt?usdMesTxt+' en dólares':'en pesos'):'Nada apartado todavía',!n.fondo?'bad':n.fondo/tc>=100?'ok':'warn')}
+    ${stat('Fondo en '+MESES[i],n.fondo,n.fondo?(usdMesTxt?usdMesTxt+' en dólares':'en pesos'):'Nada apartado todavía',!n.fondo?'bad':usdAhorrado(i)>=META_USD-0.5?'ok':'warn')}
     ${stat('Fondo acumulado',M.fondoUSD!=null?usd(M.fondoUSD):null,(M.fondoPesos?fmt(M.fondoPesos)+' en pesos':'Nada en pesos'))}
   </div>
   <div class="two">
@@ -1001,7 +1006,7 @@ function vRepartos(){
         ${hechos.length?`<div class="field"><span class="lbl">Repartos de ${MESES[i]}</span>${histo(hechos)}</div>`:''}
       </form></section>
   </div>
-  <section><div class="sec-head"><h2>Fondo de ahorro</h2><p>La meta es dejar entre USD 100 y 200 por mes.</p></div>
+  <section><div class="sec-head"><h2>Fondo de ahorro</h2><p>La meta es dejar USD ${META_USD} por mes.</p></div>
     <form class="card form" id="f-fondo">
       <div class="row2 wide">
         <div class="field"><span class="lbl">Lo guardamos en</span><div class="seg" id="fondo-en"><button type="button" data-v="usd" aria-pressed="${fondoEn==='usd'}">Dólares</button><button type="button" data-v="ars" aria-pressed="${fondoEn==='ars'}">Pesos</button></div></div>
@@ -1085,7 +1090,7 @@ function vTablero(){
     <section><div class="sec-head"><h2>Próximos ajustes de alquiler</h2></div><div class="card">${ajustesHTML()}</div></section>
     <section><div class="sec-head"><h2>Fondo en dólares</h2><p>Dólar a ${fmt(tc)} (se cambia en Repartos).</p></div>
       <div class="card tbl"><table class="t"><thead><tr><th>Mes</th><th>Pesos</th><th>Dólares</th><th>Meta</th></tr></thead><tbody>
-      ${conDatos.map(k=>{ const v=fondoV[k]; return `<tr><td>${cap(MESES[k])}</td><td>${isNum(v)?fmt(v):'—'}</td><td>${isNum(v)?usd(v/tc):'—'}</td><td><span class="pill ${isNum(v)&&v/tc>=100?'s1':(isNum(v)?'s2':'s4')}">${isNum(v)&&v/tc>=100?'Cumplida':(isNum(v)?'Corta':'Sin apartar')}</span></td></tr>`; }).join('')}
+      ${conDatos.map(k=>{ const v=fondoV[k]; return `<tr><td>${cap(MESES[k])}</td><td>${isNum(v)?fmt(v):'—'}</td><td>${usdAhorrado(k)?usd(usdAhorrado(k)):'—'}</td><td><span class="pill s${estadoMes(k)}">${['','Cumplida','Corta','Sin ahorro','—'][estadoMes(k)]}</span></td></tr>`; }).join('')}
       </tbody></table></div></section>
   </div>
   <section><div class="sec-head"><h2>AySA del edificio</h2><p>Una sola factura para todo Sabattini. Al local le toca el 42,5%. De enero a marzo el local pagó AySA y ABL juntos.</p></div>
