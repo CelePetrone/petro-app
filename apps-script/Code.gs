@@ -4,15 +4,23 @@
  * Cómo instalarlo (una sola vez):
  * 1. En el Google Sheet: Extensiones → Apps Script.
  * 2. Borrar lo que haya y pegar todo este archivo.
- * 3. Cambiar la CLAVE de abajo por una que sepan las tres.
+ * 3. Poner una clave distinta para cada una en CLAVES (abajo). Cada una usa la suya en la app.
+ *    Si una clave se filtra, se cambia solo esa y se vuelve a implementar (Implementar → Administrar implementaciones → editar → Nueva versión).
  * 4. Implementar → Nueva implementación → Tipo: Aplicación web.
  *    Ejecutar como: "Yo". Quién tiene acceso: "Cualquier persona".
+ *    ("Cualquier persona" es necesario para que la app se conecte; sin una clave válida el script no responde nada.)
  * 5. Copiar la URL que termina en /exec y pegarla en la app junto con la clave.
  *
  * La app solo puede escribir montos en las celdas de los meses (enero a diciembre)
  * de las filas de conceptos y repartos de "Control 2026". Nunca pisa fórmulas de cálculo.
+ * Todo lo que se anota queda en la hoja "Registro app": quién, cuándo, qué y el valor anterior.
  */
-const CLAVE = 'cambiar-esta-clave';
+const CLAVES = {
+  Cele: 'clave-de-cele',
+  Mica: 'clave-de-mica',
+  Anto: 'clave-de-anto',
+};
+const HOJA_REGISTRO = 'Registro app';
 
 const HOJA_CONTROL = 'Control 2026';
 const RANGOS = {
@@ -30,11 +38,20 @@ function doPost(e) {
   return responder(datos);
 }
 
+function quienEs(clave) {
+  clave = String(clave || '');
+  if (clave.length < 6) return null;
+  const nombres = Object.keys(CLAVES);
+  for (let i = 0; i < nombres.length; i++) if (CLAVES[nombres[i]] === clave) return nombres[i];
+  return null;
+}
+
 function responder(p) {
-  if (String(p.clave || '') !== CLAVE) return json({ ok: false, error: 'La clave no es correcta.' });
+  const quien = quienEs(p.clave);
+  if (!quien) { Utilities.sleep(1500); return json({ ok: false, error: 'La clave no es correcta.' }); }
   try {
-    if (p.accion === 'leer') return json({ ok: true, datos: leer() });
-    if (p.accion === 'anotar') return json(anotar(p));
+    if (p.accion === 'leer') return json({ ok: true, quien: quien, datos: leer() });
+    if (p.accion === 'anotar') return json(Object.assign({ quien: quien }, anotar(p, quien)));
     if (p.accion === 'mes') return json(cambiarMes(p));
     return json({ ok: false, error: 'Acción desconocida.' });
   } catch (err) {
@@ -61,7 +78,7 @@ function limpiar(filas) {
 // Fórmulas que son solo cuentas con números (por ejemplo =280000+624500) se pueden reemplazar.
 function esCuentaSimple(f) { return /^=[\d\s.,+\-*/()]+$/.test(f); }
 
-function anotar(p) {
+function anotar(p, quien) {
   const items = Array.isArray(p.items) ? p.items : [p];
   if (!items.length || items.length > 10) return { ok: false, error: 'Nada para anotar.' };
   const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA_CONTROL);
@@ -82,13 +99,14 @@ function anotar(p) {
       const valido = v === '' || v === null || (typeof v === 'number' && isFinite(v)) ||
         (typeof v === 'string' && (esCuentaSimple(v) || (v.charAt(0) !== '=' && v.length <= 40)));
       if (!valido) throw new Error('El valor para "' + concepto + '" no es válido.');
-      return { celda: celda, valor: v };
+      return { celda: celda, valor: v, concepto: concepto, mes: mes, antes: formula || celda.getValue() };
     });
     celdas.forEach(function (c) {
       if (c.valor === '' || c.valor === null) c.celda.clearContent();
       else if (typeof c.valor === 'string' && c.valor.charAt(0) === '=') c.celda.setFormula(c.valor);
       else c.celda.setValue(c.valor);
     });
+    registrar(quien, celdas);
     SpreadsheetApp.flush();
   } catch (err) {
     return { ok: false, error: String(err.message || err) };
@@ -96,6 +114,22 @@ function anotar(p) {
     lock.releaseLock();
   }
   return { ok: true, datos: leer() };
+}
+
+function registrar(quien, celdas) {
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  let hoja = libro.getSheetByName(HOJA_REGISTRO);
+  if (!hoja) {
+    hoja = libro.insertSheet(HOJA_REGISTRO);
+    hoja.appendRow(['Fecha', 'Quién', 'Concepto', 'Mes', 'Antes', 'Ahora']);
+    hoja.setFrozenRows(1);
+  }
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const ahora = new Date();
+  // el apóstrofo evita que Sheets tome "=a+b" como fórmula en el registro
+  const txt = function (v) { return v === '' || v === null ? '(vacío)' : "'" + String(v); };
+  const filas = celdas.map(function (c) { return [ahora, quien, c.concepto, meses[c.mes - 1], txt(c.antes), txt(c.valor)]; });
+  hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, 6).setValues(filas);
 }
 
 function cambiarMes(p) {

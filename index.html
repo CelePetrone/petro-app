@@ -212,7 +212,7 @@ async function api(cuerpo){
 }
 async function cargar(){
   setBusy(true);
-  try{ const j = await api({accion:'leer'}); usar(j.datos); }
+  try{ const j = await api({accion:'leer'}); usar(j.datos,j.quien); }
   catch(e){ toast(e.message,true); if(!raw) pintarSetup(e.message); }
   finally{ setBusy(false); }
 }
@@ -278,11 +278,13 @@ function grupoGasto(sec,c){
   if(sec.includes('IMPUESTO')) return 'Monotributo e IIBB';
   return 'Otros';
 }
-function usar(d){
+let quien=store.get('quien','');
+function usar(d,q){
+  if(q){ quien=q; store.set('quien',q); }
   raw=d; M=parsear(d);
   if(mesSel===null){ const g=store.get('mes',null); mesSel = g&&g>=1&&g<=12 ? g : M.mesReunion; }
   pintarMeses(); $('top').hidden=false; $('tabs').hidden=false;
-  const t=new Date(d.leido); $('sync').textContent=(M.demo?'Datos de prueba · ':'')+'Actualizado '+t.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+  const t=new Date(d.leido); $('sync').textContent=(M.demo?'Datos de prueba · ':'')+(quien?quien+' · ':'')+'Actualizado '+t.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
   render();
 }
 function pintarMeses(){
@@ -519,12 +521,12 @@ function pintarSetup(error){
     ${error?`<p class="pill s3" style="white-space:normal">${esc(error)}</p>`:''}
     <form class="form" id="f-cfg">
       <div class="field"><label for="cfg-url">Dirección de la conexión</label><input id="cfg-url" type="url" required placeholder="https://script.google.com/macros/s/…/exec" value="${esc(cfg?cfg.url:'')}"><small>Es la URL que da Apps Script al implementar. Termina en /exec.</small></div>
-      <div class="field"><label for="cfg-clave">Clave</label><input id="cfg-clave" type="password" required value="${esc(cfg?cfg.clave:'')}"><small>La que pusieron en el script.</small></div>
+      <div class="field"><label for="cfg-clave">Tu clave</label><input id="cfg-clave" type="password" required value="${esc(cfg?cfg.clave:'')}"><small>Cada una tiene la suya. Lo que anotes queda registrado con tu nombre en el Sheet.</small></div>
       <button class="btn primary" type="submit">Conectar</button>
     </form>
     <details><summary>¿Cómo se consigue la dirección?</summary><ol>
       <li>Abrir el Google Sheet de PETRO → Extensiones → Apps Script.</li>
-      <li>Pegar el código de <code>apps-script/Code.gs</code> y cambiar la clave.</li>
+      <li>Pegar el código de <code>apps-script/Code.gs</code> y poner una clave para cada una.</li>
       <li>Implementar → Nueva implementación → Aplicación web. Ejecutar como "Yo", acceso "Cualquier persona".</li>
       <li>Copiar la URL que termina en /exec.</li></ol></details>
   </section>`;

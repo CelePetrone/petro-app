@@ -14,11 +14,13 @@ Este repositorio es público y **no tiene datos**: los números viven en el Goog
 ## Puesta en marcha (una sola vez)
 
 1. **El Sheet**: el Excel tiene que estar como Google Sheet (Archivo → Guardar como Hojas de cálculo de Google).
-2. **La conexión**: en el Sheet, Extensiones → Apps Script. Pegar el contenido de [`apps-script/Code.gs`](apps-script/Code.gs), cambiar la `CLAVE` y guardar. Después Implementar → Nueva implementación → Aplicación web, ejecutar como "Yo" y acceso "Cualquier persona". Google pide autorizar: aceptar. Copiar la URL que termina en `/exec`.
+2. **La conexión**: en el Sheet, Extensiones → Apps Script. Pegar el contenido de [`apps-script/Code.gs`](apps-script/Code.gs), poner una clave distinta para cada una en `CLAVES` y guardar. **Las claves reales van solo en el Apps Script, nunca en este repositorio.** Después Implementar → Nueva implementación → Aplicación web, ejecutar como "Yo" y acceso "Cualquier persona". Google pide autorizar: aceptar. Copiar la URL que termina en `/exec`.
 3. **La app**: abrir la página de GitHub Pages, pegar la URL y la clave. En el celu, "Agregar a la pantalla de inicio" para tenerla como app.
 
 ## Cuidados
 
 - La app solo escribe montos en las celdas de enero a diciembre de las filas de conceptos y repartos de "Control 2026". No toca fórmulas.
-- La URL y la clave son como una llave: compartirlas solo entre las tres.
+- Cada una tiene su clave. Si una se filtra, se cambia solo esa en el script y se publica una versión nueva (Implementar → Administrar implementaciones → editar → Nueva versión).
+- Todo lo que se anota desde la app queda en la hoja "Registro app" del Sheet: quién, cuándo, qué y el valor anterior. Si algo se cargó mal, ahí se ve cómo estaba.
+- "Cualquier persona" en la implementación es necesario para que la app se conecte. Sin una clave válida, el script no devuelve nada.
 - Si se agregan filas al Sheet, copiar una fila de la misma sección, como siempre. La app las reconoce sola.
