@@ -294,6 +294,12 @@ table.t{width:100%;border-collapse:collapse;font-size:.84rem}
 .hist div b{font-variant-numeric:tabular-nums}
 .warn-t{color:var(--warn)}
 .ok-t{color:var(--ok)}
+.viejos{margin:2px 4px 0;font-size:.78rem;color:var(--muted);line-height:1.6}
+.viejos .btn.link{font-size:.78rem;font-weight:500;color:var(--bad)}
+.tj-acc{grid-column:1/-1;display:flex;gap:16px;margin-top:4px}
+.tj-acc .btn.link{font-size:.8rem}
+.btn.link.danger-l{color:var(--bad)}
+.tj-acc button[data-ok]{text-decoration:underline}
 .tipo.hermana{background:var(--ok-soft);color:var(--ok)}
 .seg.tres button{font-size:.86rem;padding:8px 4px}
 .aj.tj.s3{box-shadow:inset 3px 0 0 var(--bad);padding-left:10px}
@@ -525,6 +531,16 @@ async function anotarTarjeta(t, email){
       return {range:`'${TARJETA}'!I${x.fila}`,values:[[x.descontadas]]}; });
     await gfetch(SHEETS+CFG.sheetId+'/values:batchUpdate',{method:'POST',body:JSON.stringify({valueInputOption:'USER_ENTERED',data})});
   }
+  // saldar por afuera (deja de descontar) o borrar una fila
+  const x=t.saldar||t.borrar;
+  if(x){
+    const j=await gfetch(SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${TARJETA}'!B${x.fila}:I${x.fila}`)+'?valueRenderOption=UNFORMATTED_VALUE');
+    const r=(j.values||[[]])[0]||[];
+    if(r[0]!==x.quien||String(r[2]).replace(/^'/,'')!==String(x.que)) throw new Error('La lista cambió. Tocá "Traer lo último" y probá de nuevo.');
+    if(t.saldar) await gfetch(SHEETS+CFG.sheetId+'/values:batchUpdate',{method:'POST',body:JSON.stringify({valueInputOption:'USER_ENTERED',data:[{range:`'${TARJETA}'!I${x.fila}`,values:[['Saldada por afuera']]}]})});
+    else await gfetch(SHEETS+CFG.sheetId+'/values:batchClear',{method:'POST',body:JSON.stringify({ranges:[`'${TARJETA}'!A${x.fila}:K${x.fila}`]})});
+    await registrar([[hoy, email||'sin mail', 'Deuda interna · '+x.quien, '', `${x.que} (${r[3]})`, t.saldar?'saldada por afuera':'borrada', '']]);
+  }
 }
 async function registrar(filas){
   const url = SHEETS+CFG.sheetId+'/values/'+encodeURIComponent(`'${REGISTRO}'!A:G`)+':append?valueInputOption=USER_ENTERED';
@@ -603,7 +619,7 @@ function parsear(d){
   const cobrado=[...Array(12)].map((_,m)=>col(ingresos,m)+deOtros('ingreso',m));
   const pagado=[...Array(12)].map((_,m)=>col(gastos,m)+deOtros('pago',m));
   // compras personales con la tarjeta del negocio
-  const tarjeta=(d.tarjeta||[]).map((r,k)=>({fila:k+2,fecha:r[0],quien:r[1],tipo:String(r[2]).toLowerCase().startsWith('pr')?'prestamo':String(r[2]).toLowerCase().startsWith('entre')?'hermana':'tarjeta',de:String(r[10]||''),que:String(r[3]||'').replace(/^'/,''),monto:isNum(r[4])?r[4]:0,cuotas:isNum(r[5])&&r[5]>=1?r[5]:1,anio:isNum(r[6])?r[6]:null,mes:isNum(r[7])?r[7]:null,descontadas:isNum(r[8])?r[8]:0})).filter(t=>t.quien&&t.monto&&t.anio&&t.mes&&(t.tipo!=='hermana'||t.de));
+  const tarjeta=(d.tarjeta||[]).map((r,k)=>({fila:k+2,fecha:r[0],quien:r[1],tipo:String(r[2]).toLowerCase().startsWith('pr')?'prestamo':String(r[2]).toLowerCase().startsWith('entre')?'hermana':'tarjeta',de:String(r[10]||''),que:String(r[3]||'').replace(/^'/,''),monto:isNum(r[4])?r[4]:0,cuotas:isNum(r[5])&&r[5]>=1?r[5]:1,anio:isNum(r[6])?r[6]:null,mes:isNum(r[7])?r[7]:null,descontadas:isNum(r[8])?r[8]:(/^saldad/i.test(String(r[8]))?(isNum(r[5])?r[5]:1):0),saldada:/^saldad/i.test(String(r[8]))})).filter(t=>t.quien&&t.monto&&t.anio&&t.mes&&(t.tipo!=='hermana'||t.de));
   const reparto={}; de('reparto').forEach(f=>{ reparto[f.concepto.replace('Reparto ','')]=f; });
   const fondo=filas.find(f=>f.tipo==='fondo');
   // unidades
@@ -658,7 +674,7 @@ function render(){
   document.querySelectorAll('#nav a').forEach(a=>{ if(a.getAttribute('href')==='#'+v) a.setAttribute('aria-current','page'); else a.removeAttribute('aria-current'); });
   $('titulo').textContent=VISTAS[v];
   $('shell').classList.remove('open');
-  const n=pendientes(mesSel).length; $('nav-count').hidden=!n; $('nav-count').textContent=n;
+  const n=pendientes(mesSel).filter(p=>p.mes===mesSel).length; $('nav-count').hidden=!n; $('nav-count').textContent=n;
   charts.forEach(c=>c.destroy()); charts=[];
   ({cargar:vCargar,meses:vMeses,repartos:vRepartos,tarjeta:vTarjeta,tablero:vTablero})[v]();
 }
@@ -758,8 +774,12 @@ function vCargar(){
 
 // Versión B: los pendientes son una tabla y el monto se escribe ahí mismo
 function vCargarB(){
-  const m=mesSel, n=numeros(m), pend=pendientes(m);
-  const tabla=(titulo,items)=>`<section><div class="sec-head"><h2>${titulo}</h2><span class="pill ${items.some(p=>p.st===3)?'s3':items.length?'s2':'s1'}">${items.length?items.length+' pendientes':'Todo al día'}</span></div>
+  const m=mesSel, n=numeros(m), todo=pendientes(m), pend=todo.filter(p=>p.mes===m), viejos=todo.filter(p=>p.mes!==m);
+  // lo que se debe de meses anteriores va abajo, chiquito, agrupado por concepto
+  const deOtros=lista=>{ if(!lista.length) return ''; const g=[];
+    lista.forEach(p=>{ const x=g.find(y=>y.f===p.f); if(x) x.meses.push(p.mes); else g.push({f:p.f,meses:[p.mes]}); });
+    return `<p class="viejos">(De otros meses se debe: ${g.map(x=>`<button type="button" class="btn link" data-fila="${x.f.fila}" data-mes="${x.meses[0]}" data-tipo="${esCobro(x.f)?'ingreso':'pago'}">${esc(x.f.concepto)} ${x.meses.map(k=>MES_C[k-1].toLowerCase()).join(', ')}</button>`).join(' · ')})</p>`; };
+  const tabla=(titulo,items,vj)=>`<section><div class="sec-head"><h2>${titulo}</h2><span class="pill ${items.length?'s2':vj.length?'s3':'s1'}">${items.length?items.length+' de '+MESES[m-1]:'Al día en '+MESES[m-1]}</span></div>
     ${items.length?`<div class="card qlist">${items.map(p=>{ const u=ultimo(p.f,p.mes);
       return `<form class="q s${p.st}" data-fila="${p.f.fila}" data-mes="${p.mes}">
         <span class="dot"></span>
@@ -767,16 +787,16 @@ function vCargarB(){
         <input type="text" inputmode="decimal" autocomplete="off" aria-label="Monto de ${esc(p.f.concepto)}" placeholder="${u?nro(u.v):'Monto'}">
         <button class="btn primary" type="submit">Anotar</button>
         <select aria-label="Otra opción"><option value="">···</option><option value="inquilino">Lo pagó el inquilino</option><option value="no corresponde">No corresponde</option><option value="pagado">Pagado (sin monto)</option></select>
-      </form>`; }).join('')}</div>`:''}</section>`;
+      </form>`; }).join('')}</div>`:''}${deOtros(vj)}</section>`;
   $('app').innerHTML=`
   <div class="stats">
     ${stat('Cobrado en '+MESES[m-1],n.c,'',pend.some(p=>esCobro(p.f))?'warn':'ok')}
     ${stat('Pagado en '+MESES[m-1],n.p,'',pend.some(p=>esPago(p.f)&&p.st===3)?'bad':pend.some(p=>esPago(p.f))?'warn':'ok')}
     ${stat('Ganancia',n.g,'Le toca a cada una '+fmt(n.g/3),'hi')}
-    ${stat('Pendientes',String(pend.length),pend.filter(p=>p.st===3).length+' atrasados',pend.some(p=>p.st===3)?'bad':pend.length?'warn':'ok')}
+    ${stat('Pendientes de '+MESES[m-1],String(pend.length),viejos.length?`(${viejos.length} de otros meses)`:'',pend.length?'warn':viejos.length?'bad':'ok')}
   </div>
-  ${tabla('Para cobrar',pend.filter(p=>esCobro(p.f)))}
-  ${tabla('Para pagar',pend.filter(p=>esPago(p.f)))}
+  ${tabla('Para cobrar',pend.filter(p=>esCobro(p.f)),viejos.filter(p=>esCobro(p.f)))}
+  ${tabla('Para pagar',pend.filter(p=>esPago(p.f)),viejos.filter(p=>esPago(p.f)))}
   <section><div class="sec-head"><h2>Próximos ajustes de alquiler</h2></div><div class="card">${ajustesHTML()}</div></section>
   <section><div class="sec-head"><h2>Cargar otra cosa</h2><p>Algo que no está en la lista, o corregir un mes.</p></div>
     <form class="card form" id="f-cg" style="max-width:560px"></form></section>
@@ -788,6 +808,9 @@ function vCargarB(){
       if(v==null||isNaN(v)){ toast('Escribí un monto. Ejemplo: 290.852',true); inp.focus(); return; } ir(v); };
     F.querySelector('select').onchange=e=>{ if(e.target.value) ir(e.target.value); };
   });
+  $('app').querySelectorAll('.viejos button').forEach(b=>b.onclick=()=>{
+    cg={tipo:b.dataset.tipo,fila:+b.dataset.fila,mes:+b.dataset.mes}; formCargar();
+    $('f-cg').scrollIntoView({behavior:'smooth',block:'center'}); setTimeout(()=>$('cg-monto').focus(),300); });
   formCargar(); conectarRevisar();
 }
 function formCargar(){
@@ -914,16 +937,17 @@ function cuotaDe(t){ return Math.round(t.monto/t.cuotas); }
 function cuotasHasta(t,m){ const n=idxMes(M.anio,m)-idxMes(t.anio,t.mes)+1; return Math.max(0,Math.min(n,t.cuotas)); }
 function cuotaEnMes(t,m){ const k=idxMes(M.anio,m)-idxMes(t.anio,t.mes); return k>=0&&k<t.cuotas; }
 function descuentos(m){ const out={Mica:[],Anto:[],Cele:[]};
-  (M.tarjeta||[]).forEach(t=>{ if(cuotaEnMes(t,m)&&out[t.quien]) out[t.quien].push(t); });
+  (M.tarjeta||[]).forEach(t=>{ if(!t.saldada&&cuotaEnMes(t,m)&&out[t.quien]) out[t.quien].push(t); });
   return out; }
 const totalDesc = l => sum(l.map(cuotaDe));
 // lo que le devuelven a quien prestó (préstamos entre hermanas)
 function creditos(m){ const out={Mica:[],Anto:[],Cele:[]};
-  (M.tarjeta||[]).forEach(t=>{ if(t.tipo==='hermana'&&cuotaEnMes(t,m)&&out[t.de]) out[t.de].push(t); });
+  (M.tarjeta||[]).forEach(t=>{ if(!t.saldada&&t.tipo==='hermana'&&cuotaEnMes(t,m)&&out[t.de]) out[t.de].push(t); });
   return out; }
 const TIPO_TXT = {tarjeta:'Tarjeta',prestamo:'Préstamo del negocio',hermana:'Entre hermanas'};
 function estadoCompra(t){
   const hasta=cuotasHasta(t,mesSel);
+  if(t.saldada) return {st:1,txt:'Saldada por afuera'};
   if(t.descontadas>=t.cuotas) return {st:1,txt:'Saldada'};
   if(t.descontadas<hasta-(cuotaEnMes(t,mesSel)?1:0)) return {st:3,txt:'Falta descontar'};
   if(cuotaEnMes(t,mesSel)) return {st:2,txt:`Se descuenta en ${MESES[mesSel-1]}`};
@@ -957,7 +981,8 @@ function vTarjeta(){
     <section><div class="sec-head"><h2>Anotados</h2><span class="pill ${lista.some(t=>estadoCompra(t).st===3)?'s3':lista.some(t=>estadoCompra(t).st===2)?'s2':'s1'}">${lista.length} en total</span></div>
       <div class="card">${lista.length?lista.map(t=>{ const e=estadoCompra(t);
         return `<div class="aj tj s${e.st}"><span>${t.tipo==='hermana'?`<b>${esc(t.de)}</b> le prestó a <b>${esc(t.quien)}</b>`:`<b>${esc(t.quien)}</b>`} · <span class="tipo ${t.tipo}">${TIPO_TXT[t.tipo]}</span> ${esc(t.que)}</span><span class="pill s${e.st}">${e.txt}</span>
-          <small>${fmt(t.monto)}${t.cuotas>1?` en ${t.cuotas} cuotas de ${fmt(cuotaDe(t))}`:''} · desde ${MESES[t.mes-1]} · ${t.tipo==='hermana'?'devueltas':'descontadas'} ${t.descontadas} de ${t.cuotas}</small></div>`; }).join(''):'<div class="empty">Todavía no hay nada anotado.</div>'}</div></section>
+          <small>${fmt(t.monto)}${t.cuotas>1?` en ${t.cuotas} cuotas de ${fmt(cuotaDe(t))}`:''} · desde ${MESES[t.mes-1]} · ${t.tipo==='hermana'?'devueltas':'descontadas'} ${t.descontadas} de ${t.cuotas}</small>
+          <span class="tj-acc">${t.descontadas<t.cuotas?`<button type="button" class="btn link" data-acc="saldar" data-fila="${t.fila}">Saldado por afuera</button>`:''}<button type="button" class="btn link danger-l" data-acc="borrar" data-fila="${t.fila}">Borrar</button></span></div>`; }).join(''):'<div class="empty">Todavía no hay nada anotado.</div>'}</div></section>
   </div>
   <section class="card how"><h2>Cómo funciona</h2>
     <p><b>Entre hermanas:</b> una le prestó plata suya a otra. En cada reparto, a quien debe se le descuenta la cuota y a quien prestó se le suma. El negocio no pone ni saca nada.</p>
@@ -969,6 +994,15 @@ function vTarjeta(){
   const hint=()=>{ const v=parseMonto($('tj-monto').value), c=+$('tj-cuotas').value; $('tj-hint').textContent = v&&!isNaN(v)?(c>1?`${c} cuotas de ${fmt(v/c)}, se descuentan de ${MESES[+$('tj-mes').value-1]} en adelante.`:`Se descuenta ${fmt(v)} en el reparto de ${MESES[+$('tj-mes').value-1]}.`):'Se le descuenta de su reparto cada mes que cae una cuota.'; };
   void 0;
   $('f-tj').addEventListener('input',hint); $('f-tj').addEventListener('change',hint);
+  // botones de cada anotado: el primer toque pide confirmar, el segundo lo hace
+  $('app').querySelectorAll('.tj-acc button').forEach(b=>b.onclick=async()=>{
+    if(ocupado) return;
+    if(!b.dataset.ok){ $('app').querySelectorAll('.tj-acc button[data-ok]').forEach(x=>{ delete x.dataset.ok; x.textContent=x.dataset.acc==='saldar'?'Saldado por afuera':'Borrar'; });
+      b.dataset.ok='1'; b.textContent=b.dataset.acc==='saldar'?'¿Seguro? Tocá de nuevo':'¿Borrar? Tocá de nuevo'; return; }
+    const t=M.tarjeta.find(x=>x.fila===+b.dataset.fila); if(!t) return;
+    const ref={fila:t.fila,quien:t.quien,que:t.que,cuotas:t.cuotas};
+    await anotar([], b.dataset.acc==='saldar'?`${t.que}: saldado por afuera`:`${t.que}: borrado`, null, {tarjeta:b.dataset.acc==='saldar'?{saldar:ref}:{borrar:ref}});
+  });
   $('f-tj').onsubmit=async e=>{ e.preventDefault(); if(ocupado) return;
     const que=$('tj-que').value.trim(), v=parseMonto($('tj-monto').value), c=+$('tj-cuotas').value, mm=+$('tj-mes').value;
     if(!que){ toast('Escribí el detalle.',true); $('tj-que').focus(); return; }
